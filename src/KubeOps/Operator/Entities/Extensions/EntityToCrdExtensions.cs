@@ -239,7 +239,7 @@ namespace KubeOps.Operator.Entities.Extensions
                 props.Type = Object;
                 props.XKubernetesPreserveUnknownFields = true;
             }
-            else if (!isSimpleType && IsGenericEnumerableType(type, out Type? closingType))
+            else if (!isSimpleType && IsGenericEnumerableType(type, out var closingType))
             {
                 props.Type = Array;
                 props.Items = MapType(closingType, additionalColumns, jsonPath);
