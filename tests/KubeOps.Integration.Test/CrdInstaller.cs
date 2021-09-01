@@ -24,6 +24,7 @@ namespace KubeOps.Integration.Test
             var registrar = new ComponentRegistrar();
 
             registrar.RegisterEntity<TestEntityWithoutSpec>();
+            registrar.RegisterEntity<NonRequeueEntity>();
 
             var builder = new CrdBuilder(registrar);
             _crds = builder.BuildCrds().ToList();
@@ -42,6 +43,7 @@ namespace KubeOps.Integration.Test
             {
                 client.Delete(crd).Wait();
             }
+
             base.Dispose();
         }
     }

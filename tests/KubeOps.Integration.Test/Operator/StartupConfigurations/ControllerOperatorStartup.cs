@@ -9,6 +9,8 @@ namespace KubeOps.Integration.Test.Operator.StartupConfigurations
     {
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddSingleton<ControllerCallCheck>();
+
             services
                 .AddKubernetesOperator(
                     s =>

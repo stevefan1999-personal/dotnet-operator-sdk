@@ -5,31 +5,37 @@ using KubeOps.Operator.Controller.Results;
 
 namespace KubeOps.Integration.Test.Operator.Controller
 {
-    public class NonRequeueingController : IResourceController<TestEntityWithoutSpec>
+    public class NonRequeueingController : IResourceController<NonRequeueEntity>
     {
-        public async Task<ResourceControllerResult?> CreatedAsync(TestEntityWithoutSpec entity)
+        private readonly ControllerCallCheck _check;
+
+        public NonRequeueingController(ControllerCallCheck check)
         {
-            throw new System.NotImplementedException();
+            _check = check;
         }
 
-        public async Task<ResourceControllerResult?> UpdatedAsync(TestEntityWithoutSpec entity)
+        public Task<ResourceControllerResult?> CreatedAsync(NonRequeueEntity entity)
         {
-            throw new System.NotImplementedException();
+            _check.CreateCalled++;
+            return Task.FromResult<ResourceControllerResult?>(null);
         }
 
-        public async Task<ResourceControllerResult?> NotModifiedAsync(TestEntityWithoutSpec entity)
+        public Task<ResourceControllerResult?> UpdatedAsync(NonRequeueEntity entity)
         {
-            throw new System.NotImplementedException();
+            _check.UpdateCalled++;
+            return Task.FromResult<ResourceControllerResult?>(null);
         }
 
-        public async Task StatusModifiedAsync(TestEntityWithoutSpec entity)
+        public Task StatusModifiedAsync(NonRequeueEntity entity)
         {
-            throw new System.NotImplementedException();
+            _check.StatusModifiedCalled++;
+            return Task.FromResult<ResourceControllerResult?>(null);
         }
 
-        public async Task DeletedAsync(TestEntityWithoutSpec entity)
+        public Task DeletedAsync(NonRequeueEntity entity)
         {
-            throw new System.NotImplementedException();
+            _check.DeletedCalled++;
+            return Task.FromResult<ResourceControllerResult?>(null);
         }
     }
 }
