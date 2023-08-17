@@ -24,7 +24,7 @@
     <PackageReference Include="Localtunnel" Version="1.0.5" />
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="4.0.2" />
     <PackageReference Include="McMaster.Extensions.Hosting.CommandLine" Version="4.0.2" />
-    <PackageReference Include="Namotion.Reflection" Version="2.1.1" />
+    <PackageReference Include="Namotion.Reflection" Version="2.1.2" />
     <PackageReference Include="prometheus-net.AspNetCore" Version="7.0.0" />
     <PackageReference Include="prometheus-net.AspNetCore.HealthChecks" Version="7.0.0" />
     <PackageReference Include="SimpleBase" Version="4.0.0" />
@@ -32,11 +32,11 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="6.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="6.0.21" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net7.0'">
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="7.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="7.0.10" />
   </ItemGroup>
 
   <ItemGroup>
