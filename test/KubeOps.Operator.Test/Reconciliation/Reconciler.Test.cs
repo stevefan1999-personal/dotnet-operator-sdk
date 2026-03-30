@@ -471,8 +471,8 @@ public sealed class ReconcilerTest
             .Returns(mockScopeFactory.Object);
 
         _mockServiceProvider
-            .Setup(p => p.GetService(typeof(IEntityController<V1ConfigMap>)))
-            .Returns(controller);
+            .Setup(p => p.GetService(typeof(IEnumerable<IEntityController<V1ConfigMap>>)))
+            .Returns(new List<IEntityController<V1ConfigMap>> { controller });
 
         return new(
             _mockLogger.Object,

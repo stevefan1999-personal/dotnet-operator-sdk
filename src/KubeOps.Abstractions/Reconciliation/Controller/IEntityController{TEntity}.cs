@@ -41,6 +41,17 @@ public interface IEntityController<TEntity>
     where TEntity : IKubernetesObject<V1ObjectMeta>
 {
     /// <summary>
+    /// An optional Kubernetes label selector expression (e.g. <c>app in (foo,bar),env=prod</c>) that
+    /// restricts which entities this controller handles. When <c>null</c> (the default) the controller
+    /// handles all entities of the given type, preserving backward-compatible behaviour.
+    ///
+    /// When multiple controllers are registered for the same entity type the reconciler evaluates every
+    /// controller's <see cref="LabelFilter"/> against the entity's labels and dispatches to all that
+    /// match, allowing fine-grained fan-out without touching the watcher or DI registration plumbing.
+    /// </summary>
+    string? LabelFilter => null;
+
+    /// <summary>
     /// Reconciles the state of the specified entity with the desired state.
     /// This method is triggered for `added` and `modified` events from the watcher.
     /// </summary>

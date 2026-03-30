@@ -46,7 +46,7 @@ internal sealed class OperatorBuilder : IOperatorBuilder
         where TImplementation : class, IEntityController<TEntity>
         where TEntity : IKubernetesObject<V1ObjectMeta>
     {
-        Services.TryAddScoped<IEntityController<TEntity>, TImplementation>();
+        Services.AddScoped<IEntityController<TEntity>, TImplementation>();
         Services.TryAddSingleton<IReconciler<TEntity>, Reconciler<TEntity>>();
 
         // Requeue
