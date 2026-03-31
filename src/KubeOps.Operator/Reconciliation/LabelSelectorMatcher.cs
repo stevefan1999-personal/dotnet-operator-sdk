@@ -22,12 +22,7 @@ internal static class LabelSelectorMatcher
         if (selector is null) return true;
         entityLabels ??= new Dictionary<string, string>();
 
-        foreach (var clause in SplitTopLevel(selector))
-        {
-            if (!MatchClause(clause, entityLabels)) return false;
-        }
-
-        return true;
+        return SplitTopLevel(selector).All(clause => MatchClause(clause, entityLabels));
     }
 
     // Splits "key in (a,b),other notin (c)" at top-level commas only (ignores commas inside parens).
@@ -78,6 +73,24 @@ internal static class LabelSelectorMatcher
             var key = clause[..idx].Trim();
             var values = ParseValues(clause[(idx + notinOp.Length)..^1]);
             return !labels.TryGetValue(key, out var v) || !values.Contains(v);
+        }
+
+        // "key!=value"
+        int neqIdx = clause.IndexOf("!=", StringComparison.Ordinal);
+        if (neqIdx >= 0)
+        {
+            var key = clause[..neqIdx].Trim();
+            var value = clause[(neqIdx + 2)..].Trim();
+            return !labels.TryGetValue(key, out var v) || v != value;
+        }
+
+        // "key=value"
+        int eqIdx = clause.IndexOf('=');
+        if (eqIdx >= 0)
+        {
+            var key = clause[..eqIdx].Trim();
+            var value = clause[(eqIdx + 1)..].Trim();
+            return labels.TryGetValue(key, out var v) && v == value;
         }
 
         // "!key"

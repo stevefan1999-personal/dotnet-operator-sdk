@@ -193,4 +193,60 @@ public sealed class LabelSelectorMatcherTest
         // key absent → not in any set → true
         LabelSelectorMatcher.Matches("env notin (prod)", new Dictionary<string, string>()).Should().BeTrue();
     }
+
+    // ── key=value equality ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Matches_EqualityOperator_Matches_ReturnsTrue()
+    {
+        var labels = new Dictionary<string, string> { ["env"] = "prod" };
+        LabelSelectorMatcher.Matches("env=prod", labels).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Matches_EqualityOperator_WrongValue_ReturnsFalse()
+    {
+        var labels = new Dictionary<string, string> { ["env"] = "staging" };
+        LabelSelectorMatcher.Matches("env=prod", labels).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Matches_EqualityOperator_KeyAbsent_ReturnsFalse()
+    {
+        LabelSelectorMatcher.Matches("env=prod", new Dictionary<string, string>()).Should().BeFalse();
+    }
+
+    // ── key!=value inequality ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Matches_InequalityOperator_DifferentValue_ReturnsTrue()
+    {
+        var labels = new Dictionary<string, string> { ["env"] = "staging" };
+        LabelSelectorMatcher.Matches("env!=prod", labels).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Matches_InequalityOperator_SameValue_ReturnsFalse()
+    {
+        var labels = new Dictionary<string, string> { ["env"] = "prod" };
+        LabelSelectorMatcher.Matches("env!=prod", labels).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Matches_InequalityOperator_KeyAbsent_ReturnsTrue()
+    {
+        // key absent → not equal → true
+        LabelSelectorMatcher.Matches("env!=prod", new Dictionary<string, string>()).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Matches_MixedEqualityAndSetBased_AllMatch_ReturnsTrue()
+    {
+        var labels = new Dictionary<string, string>
+        {
+            ["env"] = "prod",
+            ["region"] = "eu-west",
+        };
+        LabelSelectorMatcher.Matches("env=prod,region in (eu-west,us-east)", labels).Should().BeTrue();
+    }
 }

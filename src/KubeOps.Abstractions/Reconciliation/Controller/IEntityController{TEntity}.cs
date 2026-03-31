@@ -41,7 +41,7 @@ public interface IEntityController<TEntity>
     where TEntity : IKubernetesObject<V1ObjectMeta>
 {
     /// <summary>
-    /// An optional Kubernetes label selector expression (e.g. <c>app in (foo,bar),env=prod</c>) that
+    /// An optional Kubernetes label selector expression (e.g. <c>app in (foo,bar),env in (prod)</c>) that
     /// restricts which entities this controller handles. When <c>null</c> (the default) the controller
     /// handles all entities of the given type, preserving backward-compatible behaviour.
     ///
