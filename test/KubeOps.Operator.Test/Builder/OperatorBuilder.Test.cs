@@ -145,6 +145,20 @@ public sealed class OperatorBuilderTest
     }
 
     [Fact]
+    public void Should_Dedupe_Identical_Controller_Registrations()
+    {
+        _builder.AddController<TestController, V1OperatorIntegrationTestEntity>();
+        _builder.AddController<TestController, V1OperatorIntegrationTestEntity>();
+
+        var registrations = _builder.Services
+            .Where(s => s.ServiceType == typeof(IEntityController<V1OperatorIntegrationTestEntity>))
+            .ToList();
+
+        registrations.Should().HaveCount(1);
+        registrations.Should().ContainSingle(s => s.ImplementationType == typeof(TestController));
+    }
+
+    [Fact]
     public void Should_Resolve_All_Controllers_For_Same_Entity_Type()
     {
         _builder.AddController<TestController, V1OperatorIntegrationTestEntity>();
