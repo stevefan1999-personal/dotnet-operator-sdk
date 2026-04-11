@@ -45,10 +45,10 @@ public sealed class ReconcilerMultiControllerTest
             .Returns(_mockCache.Object);
     }
 
-    // ── default ShouldHandle = catch-all ──────────────────────────────────────
+    // ── mocked ShouldHandle returning true = catch-all ───────────────────────
 
     [Fact]
-    public async Task Dispatch_DefaultShouldHandle_MatchesEntityWithNoLabels()
+    public async Task Dispatch_ShouldHandleReturningTrue_MatchesEntityWithNoLabels()
     {
         var entity = CreateEntity();
         var controller = CreateController(shouldHandle: _ => true);
@@ -61,7 +61,7 @@ public sealed class ReconcilerMultiControllerTest
     }
 
     [Fact]
-    public async Task Dispatch_DefaultShouldHandle_MatchesEntityWithLabels()
+    public async Task Dispatch_ShouldHandleReturningTrue_MatchesEntityWithLabels()
     {
         var entity = CreateEntity(labels: new() { ["env"] = "prod" });
         var controller = CreateController(shouldHandle: _ => true);
@@ -71,6 +71,22 @@ public sealed class ReconcilerMultiControllerTest
         await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
 
         controller.Verify(c => c.ReconcileAsync(entity, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── default interface method exercise (no mock) ──────────────────────────
+
+    [Fact]
+    public async Task Dispatch_ConcreteControllerWithoutOverride_UsesDefaultInterfaceMethod_AndDispatches()
+    {
+        var entity = CreateEntity(labels: new() { ["env"] = "prod" });
+        var controller = new DefaultShouldHandleController();
+        var reconciler = CreateReconciler([controller]);
+
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(entity, WatchEventType.Added);
+        var result = await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        controller.ReconcileCallCount.Should().Be(1);
     }
 
     // ── ShouldHandle label-based claim ────────────────────────────────────────
@@ -284,7 +300,62 @@ public sealed class ReconcilerMultiControllerTest
         reconcileCalledAfter.Should().BeTrue();
     }
 
+    // ── misconfiguration: zero registrations ─────────────────────────────────
+
+    [Fact]
+    public async Task Dispatch_NoControllersRegistered_ReturnsFailure()
+    {
+        var entity = CreateEntity();
+        var reconciler = CreateReconciler([]);
+
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(entity, WatchEventType.Added);
+        var result = await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("No IEntityController");
+    }
+
+    // ── cancellation ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Dispatch_CancelledBeforeShouldHandle_ThrowsOperationCanceled()
+    {
+        var entity = CreateEntity();
+        var controller = CreateController(shouldHandle: _ => true);
+        var reconciler = CreateReconciler([controller.Object]);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(entity, WatchEventType.Added);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await reconciler.Reconcile(context, cts.Token));
+
+        controller.Verify(
+            c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Concrete controller with no <see cref="IEntityController{TEntity}.ShouldHandle"/> override —
+    /// used to verify the default interface method (<c>ValueTask.FromResult(true)</c>) is invoked.
+    /// </summary>
+    private sealed class DefaultShouldHandleController : IEntityController<V1ConfigMap>
+    {
+        public int ReconcileCallCount { get; private set; }
+
+        public Task<ReconciliationResult<V1ConfigMap>> ReconcileAsync(V1ConfigMap entity, CancellationToken cancellationToken)
+        {
+            ReconcileCallCount++;
+            return Task.FromResult(ReconciliationResult<V1ConfigMap>.Success(entity));
+        }
+
+        public Task<ReconciliationResult<V1ConfigMap>> DeletedAsync(V1ConfigMap entity, CancellationToken cancellationToken) =>
+            Task.FromResult(ReconciliationResult<V1ConfigMap>.Success(entity));
+    }
 
     private Reconciler<V1ConfigMap> CreateReconciler(IList<IEntityController<V1ConfigMap>> controllers)
     {

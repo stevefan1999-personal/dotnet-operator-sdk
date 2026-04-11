@@ -146,6 +146,7 @@ internal sealed class Reconciler<TEntity>(
             var anyFinalizerAdded = false;
             foreach (var finalizer in finalizers)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!await finalizer.ShouldHandle(entity))
                 {
                     continue;
@@ -171,7 +172,8 @@ internal sealed class Reconciler<TEntity>(
     /// Gets all <see cref="IEntityController{TEntity}"/> registrations whose <see cref="IEntityController{TEntity}.ShouldHandle"/>
     /// returns <c>true</c> for the given entity, then calls <paramref name="operation"/> on each in registration order.
     /// On the first failure the chain is short-circuited and that failure result is returned.
-    /// If no controller claims responsibility, a success result is returned and a warning is logged.
+    /// If no controller is registered at all the result is a configuration-error failure; if controllers are
+    /// registered but none claim responsibility, a success result is returned and a warning is logged.
     /// </summary>
     private async Task<ReconciliationResult<TEntity>> DispatchToMatchingControllers(
         IServiceProvider services,
@@ -179,9 +181,18 @@ internal sealed class Reconciler<TEntity>(
         Func<IEntityController<TEntity>, TEntity, CancellationToken, Task<ReconciliationResult<TEntity>>> operation,
         CancellationToken cancellationToken)
     {
-        var responsibleControllers = new List<IEntityController<TEntity>>();
-        foreach (var controller in services.GetServices<IEntityController<TEntity>>())
+        var registeredControllers = services.GetServices<IEntityController<TEntity>>().ToList();
+        if (registeredControllers.Count == 0)
         {
+            return ReconciliationResult<TEntity>.Failure(
+                entity,
+                $"No IEntityController<{typeof(TEntity).Name}> registered. Did you forget to call AddController<T, TEntity>() on the operator builder?");
+        }
+
+        var responsibleControllers = new List<IEntityController<TEntity>>();
+        foreach (var controller in registeredControllers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             if (await controller.ShouldHandle(entity))
             {
                 responsibleControllers.Add(controller);
@@ -200,6 +211,7 @@ internal sealed class Reconciler<TEntity>(
         ReconciliationResult<TEntity> result = ReconciliationResult<TEntity>.Success(entity);
         foreach (var controller in responsibleControllers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             result = await operation(controller, result.Entity, cancellationToken);
             if (!result.IsSuccess) return result;
         }
