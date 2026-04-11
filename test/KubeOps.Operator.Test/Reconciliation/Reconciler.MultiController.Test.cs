@@ -300,6 +300,76 @@ public sealed class ReconcilerMultiControllerTest
         reconcileCalledAfter.Should().BeTrue();
     }
 
+    // ── RequeueAfter aggregation ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task Dispatch_MultipleControllersWithRequeueAfter_KeepsEarliestNonNull()
+    {
+        var entity = CreateEntity();
+
+        var ctrl1 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: e => ReconciliationResult<V1ConfigMap>.Success(e, TimeSpan.FromMinutes(10)));
+        var ctrl2 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: e => ReconciliationResult<V1ConfigMap>.Success(e, TimeSpan.FromMinutes(2)));
+        var ctrl3 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: e => ReconciliationResult<V1ConfigMap>.Success(e, TimeSpan.FromMinutes(5)));
+
+        var reconciler = CreateReconciler([ctrl1.Object, ctrl2.Object, ctrl3.Object]);
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(entity, WatchEventType.Added);
+        var result = await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.RequeueAfter.Should().Be(TimeSpan.FromMinutes(2));
+    }
+
+    [Fact]
+    public async Task Dispatch_LaterControllerReturnsNullRequeueAfter_DoesNotEraseEarlierRequeue()
+    {
+        var entity = CreateEntity();
+
+        var ctrl1 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: e => ReconciliationResult<V1ConfigMap>.Success(e, TimeSpan.FromMinutes(3)));
+        var ctrl2 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: e => ReconciliationResult<V1ConfigMap>.Success(e));
+
+        var reconciler = CreateReconciler([ctrl1.Object, ctrl2.Object]);
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(entity, WatchEventType.Added);
+        var result = await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.Should().BeTrue();
+        result.RequeueAfter.Should().Be(TimeSpan.FromMinutes(3));
+    }
+
+    // ── just-in-time ShouldHandle sees mutated entity ────────────────────────
+
+    [Fact]
+    public async Task Dispatch_ControllerMutatesEntity_SecondControllerShouldHandleSeesMutation()
+    {
+        var original = CreateEntity(labels: new() { ["env"] = "prod" });
+        var mutated = CreateEntity(name: "mutated", labels: new() { ["env"] = "staging" });
+
+        var ctrl1 = CreateController(
+            shouldHandle: _ => true,
+            onReconcile: _ => ReconciliationResult<V1ConfigMap>.Success(mutated));
+
+        // ctrl2 would claim the original (env=prod) but not the mutated (env=staging) entity.
+        // With JIT evaluation against the current entity, ctrl2 must NOT be dispatched.
+        var ctrl2 = CreateController(shouldHandle: e => GetLabel(e, "env") == "prod");
+
+        var reconciler = CreateReconciler([ctrl1.Object, ctrl2.Object]);
+        var context = ReconciliationContext<V1ConfigMap>.CreateFromApiServerEvent(original, WatchEventType.Added);
+        await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
+
+        ctrl1.Verify(c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()), Times.Once);
+        ctrl2.Verify(c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()), Times.Never);
+        ctrl2.Verify(c => c.ShouldHandle(mutated), Times.Once);
+    }
+
     // ── misconfiguration: zero registrations ─────────────────────────────────
 
     [Fact]

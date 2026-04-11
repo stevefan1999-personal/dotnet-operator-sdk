@@ -141,6 +141,7 @@ internal sealed class Reconciler<TEntity>(
 
         if (operatorSettings.AutoAttachFinalizers)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var finalizers = scope.ServiceProvider.GetKeyedServices<IEntityFinalizer<TEntity>>(KeyedService.AnyKey);
 
             var anyFinalizerAdded = false;
@@ -169,11 +170,17 @@ internal sealed class Reconciler<TEntity>(
     }
 
     /// <summary>
-    /// Gets all <see cref="IEntityController{TEntity}"/> registrations whose <see cref="IEntityController{TEntity}.ShouldHandle"/>
-    /// returns <c>true</c> for the given entity, then calls <paramref name="operation"/> on each in registration order.
-    /// On the first failure the chain is short-circuited and that failure result is returned.
-    /// If no controller is registered at all the result is a configuration-error failure; if controllers are
-    /// registered but none claim responsibility, a success result is returned and a warning is logged.
+    /// Resolves all <see cref="IEntityController{TEntity}"/> registrations and, in registration order,
+    /// asks each controller <see cref="IEntityController{TEntity}.ShouldHandle"/> against the current
+    /// (possibly mutated) entity just-in-time and dispatches <paramref name="operation"/> when it claims
+    /// responsibility. On the first failure the chain short-circuits and that failure is returned.
+    /// If no controller is registered at all the result is a configuration-error failure; if controllers
+    /// are registered but none claim responsibility, a success result is returned and a warning is logged.
+    /// <para>
+    /// <b>RequeueAfter aggregation:</b> across successful controller results, the earliest non-null
+    /// <see cref="ReconciliationResult{TEntity}.RequeueAfter"/> is kept, so an auditing controller that
+    /// returns <c>Success(entity)</c> never erases a requeue requested by an earlier controller.
+    /// </para>
     /// </summary>
     private async Task<ReconciliationResult<TEntity>> DispatchToMatchingControllers(
         IServiceProvider services,
@@ -181,6 +188,8 @@ internal sealed class Reconciler<TEntity>(
         Func<IEntityController<TEntity>, TEntity, CancellationToken, Task<ReconciliationResult<TEntity>>> operation,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var registeredControllers = services.GetServices<IEntityController<TEntity>>().ToList();
         if (registeredControllers.Count == 0)
         {
@@ -189,34 +198,49 @@ internal sealed class Reconciler<TEntity>(
                 $"No IEntityController<{typeof(TEntity).Name}> registered. Did you forget to call AddController<T, TEntity>() on the operator builder?");
         }
 
-        var responsibleControllers = new List<IEntityController<TEntity>>();
+        var currentEntity = entity;
+        TimeSpan? aggregatedRequeueAfter = null;
+        var anyDispatched = false;
+
         foreach (var controller in registeredControllers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await controller.ShouldHandle(entity))
+
+            // Evaluate ShouldHandle just-in-time against the (possibly mutated) current entity —
+            // so a controller that would claim the *initial* state but reject the *post-mutation*
+            // state does not get invoked.
+            if (!await controller.ShouldHandle(currentEntity))
             {
-                responsibleControllers.Add(controller);
+                continue;
+            }
+
+            anyDispatched = true;
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await operation(controller, currentEntity, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                return result;
+            }
+
+            currentEntity = result.Entity;
+
+            if (result.RequeueAfter is not null &&
+                (aggregatedRequeueAfter is null || result.RequeueAfter < aggregatedRequeueAfter))
+            {
+                aggregatedRequeueAfter = result.RequeueAfter;
             }
         }
 
-        if (responsibleControllers.Count == 0)
+        if (!anyDispatched)
         {
             logger.LogWarning(
                 """No responsible controller found for "{Kind}/{Name}". Skipping.""",
-                entity.Kind,
-                entity.Name());
-            return ReconciliationResult<TEntity>.Success(entity);
+                currentEntity.Kind,
+                currentEntity.Name());
+            return ReconciliationResult<TEntity>.Success(currentEntity);
         }
 
-        ReconciliationResult<TEntity> result = ReconciliationResult<TEntity>.Success(entity);
-        foreach (var controller in responsibleControllers)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            result = await operation(controller, result.Entity, cancellationToken);
-            if (!result.IsSuccess) return result;
-        }
-
-        return result;
+        return ReconciliationResult<TEntity>.Success(currentEntity, aggregatedRequeueAfter);
     }
 
     private async Task<ReconciliationResult<TEntity>> ReconcileFinalizersSequential(TEntity entity, CancellationToken cancellationToken)

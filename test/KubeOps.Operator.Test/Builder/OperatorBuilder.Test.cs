@@ -164,8 +164,13 @@ public sealed class OperatorBuilderTest
         _builder.AddController<TestController, V1OperatorIntegrationTestEntity>();
         _builder.AddController<SecondTestController, V1OperatorIntegrationTestEntity>();
 
-        var provider = _builder.Services.BuildServiceProvider();
-        var controllers = provider
+        // Resolve from a scope (with scope validation enabled) to mirror how the runtime reconciler
+        // dispatches — directly resolving scoped services from the root provider would throw with
+        // ValidateScopes=true, which is exactly the scenario production hits.
+        var provider = _builder.Services.BuildServiceProvider(
+            new ServiceProviderOptions { ValidateScopes = true });
+        using var scope = provider.CreateScope();
+        var controllers = scope.ServiceProvider
             .GetServices<IEntityController<V1OperatorIntegrationTestEntity>>()
             .ToList();
 
