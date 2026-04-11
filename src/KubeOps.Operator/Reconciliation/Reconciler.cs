@@ -148,7 +148,7 @@ internal sealed class Reconciler<TEntity>(
             foreach (var finalizer in finalizers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!await finalizer.ShouldHandle(entity))
+                if (!await finalizer.ShouldHandle(entity, cancellationToken))
                 {
                     continue;
                 }
@@ -209,7 +209,7 @@ internal sealed class Reconciler<TEntity>(
             // Evaluate ShouldHandle just-in-time against the (possibly mutated) current entity —
             // so a controller that would claim the *initial* state but reject the *post-mutation*
             // state does not get invoked.
-            if (!await controller.ShouldHandle(currentEntity))
+            if (!await controller.ShouldHandle(currentEntity, cancellationToken))
             {
                 continue;
             }

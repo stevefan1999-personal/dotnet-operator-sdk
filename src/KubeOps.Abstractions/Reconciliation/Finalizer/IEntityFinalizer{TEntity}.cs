@@ -24,8 +24,9 @@ public interface IEntityFinalizer<TEntity>
     /// acts as a one-time responsibility claim at attach time, not an ongoing gate.
     /// </summary>
     /// <param name="entity">The entity the reconciler is considering for this finalizer.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
     /// <returns>A <see cref="ValueTask{Boolean}"/> that resolves to <c>true</c> if this finalizer should claim the entity.</returns>
-    ValueTask<bool> ShouldHandle(TEntity entity) => ValueTask.FromResult(true);
+    ValueTask<bool> ShouldHandle(TEntity entity, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
 
     /// <summary>
     /// Finalize an entity that is pending for deletion.

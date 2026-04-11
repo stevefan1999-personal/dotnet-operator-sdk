@@ -50,8 +50,9 @@ public interface IEntityController<TEntity>
     /// namespace, status conditions, or any other entity-derived predicate the consumer needs.
     /// </summary>
     /// <param name="entity">The entity the reconciler is about to dispatch.</param>
+    /// <param name="cancellationToken">The token used to signal cancellation of the operation.</param>
     /// <returns>A <see cref="ValueTask{Boolean}"/> that resolves to <c>true</c> if this controller should reconcile the entity.</returns>
-    ValueTask<bool> ShouldHandle(TEntity entity) => ValueTask.FromResult(true);
+    ValueTask<bool> ShouldHandle(TEntity entity, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
 
     /// <summary>
     /// Reconciles the state of the specified entity with the desired state.

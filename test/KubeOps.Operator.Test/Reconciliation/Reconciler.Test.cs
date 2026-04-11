@@ -150,7 +150,7 @@ public sealed class ReconcilerTest
         var mockController = new Mock<IEntityController<V1ConfigMap>>();
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -174,7 +174,7 @@ public sealed class ReconcilerTest
         var mockController = new Mock<IEntityController<V1ConfigMap>>();
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -220,7 +220,7 @@ public sealed class ReconcilerTest
         var mockController = new Mock<IEntityController<V1ConfigMap>>();
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -378,7 +378,7 @@ public sealed class ReconcilerTest
         var mockFinalizer = new Mock<IEntityFinalizer<V1ConfigMap>>();
 
         mockFinalizer
-            .Setup(f => f.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(f => f.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         _mockClient
@@ -394,7 +394,7 @@ public sealed class ReconcilerTest
             .Returns(new List<IEntityFinalizer<V1ConfigMap>> { mockFinalizer.Object });
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -422,7 +422,7 @@ public sealed class ReconcilerTest
         var mockFinalizer = new Mock<IEntityFinalizer<V1ConfigMap>>();
 
         mockFinalizer
-            .Setup(f => f.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(f => f.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(false));
 
         _mockServiceProvider
@@ -432,7 +432,7 @@ public sealed class ReconcilerTest
             .Returns(new List<IEntityFinalizer<V1ConfigMap>> { mockFinalizer.Object });
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -443,7 +443,7 @@ public sealed class ReconcilerTest
 
         await reconciler.Reconcile(context, TestContext.Current.CancellationToken);
 
-        mockFinalizer.Verify(f => f.ShouldHandle(It.IsAny<V1ConfigMap>()), Times.Once);
+        mockFinalizer.Verify(f => f.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()), Times.Once);
         _mockClient.Verify(
             c => c.UpdateAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -466,7 +466,7 @@ public sealed class ReconcilerTest
             .Returns(() => new List<IEntityFinalizer<V1ConfigMap>>());
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController
@@ -586,7 +586,7 @@ public sealed class ReconcilerTest
         var entity = CreateTestEntity();
 
         mockController
-            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
+            .Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .Returns(ValueTask.FromResult(true));
 
         mockController

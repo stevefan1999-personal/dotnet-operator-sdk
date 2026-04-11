@@ -279,8 +279,8 @@ public sealed class ReconcilerMultiControllerTest
         var reconcileCalledAfter = false;
 
         var mock = new Mock<IEntityController<V1ConfigMap>>();
-        mock.Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
-            .Returns(async (V1ConfigMap _) =>
+        mock.Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
+            .Returns(async (V1ConfigMap _, CancellationToken __) =>
             {
                 await Task.Yield();
                 shouldHandleCalled = true;
@@ -367,7 +367,7 @@ public sealed class ReconcilerMultiControllerTest
 
         ctrl1.Verify(c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()), Times.Once);
         ctrl2.Verify(c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()), Times.Never);
-        ctrl2.Verify(c => c.ShouldHandle(mutated), Times.Once);
+        ctrl2.Verify(c => c.ShouldHandle(mutated, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── misconfiguration: zero registrations ─────────────────────────────────
@@ -458,8 +458,8 @@ public sealed class ReconcilerMultiControllerTest
     {
         var mock = new Mock<IEntityController<V1ConfigMap>>();
 
-        mock.Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>()))
-            .Returns((V1ConfigMap e) => ValueTask.FromResult(shouldHandle(e)));
+        mock.Setup(c => c.ShouldHandle(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
+            .Returns((V1ConfigMap e, CancellationToken _) => ValueTask.FromResult(shouldHandle(e)));
 
         mock.Setup(c => c.ReconcileAsync(It.IsAny<V1ConfigMap>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((V1ConfigMap e, CancellationToken _) =>
