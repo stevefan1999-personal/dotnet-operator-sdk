@@ -6,6 +6,7 @@ using k8s;
 using k8s.Models;
 
 using KubeOps.Abstractions.Builder;
+using KubeOps.Abstractions.Entities;
 using KubeOps.Abstractions.Reconciliation;
 using KubeOps.Abstractions.Reconciliation.Controller;
 using KubeOps.Abstractions.Reconciliation.Finalizer;
@@ -115,8 +116,11 @@ internal sealed class Reconciler<TEntity>(
                 cancellationToken);
 
         await using var scope = serviceProvider.CreateAsyncScope();
-        var controller = scope.ServiceProvider.GetRequiredService<IEntityController<TEntity>>();
-        var result = await controller.DeletedAsync(reconciliationContext.Entity, cancellationToken);
+        var result = await DispatchToMatchingControllers(
+            scope.ServiceProvider,
+            reconciliationContext.Entity,
+            (ctrl, entity, ct) => ctrl.DeletedAsync(entity, ct),
+            cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -139,10 +143,16 @@ internal sealed class Reconciler<TEntity>(
         {
             var finalizers = scope.ServiceProvider.GetKeyedServices<IEntityFinalizer<TEntity>>(KeyedService.AnyKey);
 
-            var anyFinalizerAdded = finalizers
-                .Aggregate(
-                    false,
-                    (changed, finalizer) => entity.AddFinalizer(finalizer.GetIdentifierName(entity)) || changed);
+            var anyFinalizerAdded = false;
+            foreach (var finalizer in finalizers)
+            {
+                if (!await finalizer.ShouldHandle(entity))
+                {
+                    continue;
+                }
+
+                anyFinalizerAdded = entity.AddFinalizer(finalizer.GetIdentifierName(entity)) || anyFinalizerAdded;
+            }
 
             if (anyFinalizerAdded)
             {
@@ -150,8 +160,51 @@ internal sealed class Reconciler<TEntity>(
             }
         }
 
-        var controller = scope.ServiceProvider.GetRequiredService<IEntityController<TEntity>>();
-        return await controller.ReconcileAsync(entity, cancellationToken);
+        return await DispatchToMatchingControllers(
+            scope.ServiceProvider,
+            entity,
+            (ctrl, e, ct) => ctrl.ReconcileAsync(e, ct),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets all <see cref="IEntityController{TEntity}"/> registrations whose <see cref="IEntityController{TEntity}.ShouldHandle"/>
+    /// returns <c>true</c> for the given entity, then calls <paramref name="operation"/> on each in registration order.
+    /// On the first failure the chain is short-circuited and that failure result is returned.
+    /// If no controller claims responsibility, a success result is returned and a warning is logged.
+    /// </summary>
+    private async Task<ReconciliationResult<TEntity>> DispatchToMatchingControllers(
+        IServiceProvider services,
+        TEntity entity,
+        Func<IEntityController<TEntity>, TEntity, CancellationToken, Task<ReconciliationResult<TEntity>>> operation,
+        CancellationToken cancellationToken)
+    {
+        var responsibleControllers = new List<IEntityController<TEntity>>();
+        foreach (var controller in services.GetServices<IEntityController<TEntity>>())
+        {
+            if (await controller.ShouldHandle(entity))
+            {
+                responsibleControllers.Add(controller);
+            }
+        }
+
+        if (responsibleControllers.Count == 0)
+        {
+            logger.LogWarning(
+                """No responsible controller found for "{Kind}/{Name}". Skipping.""",
+                entity.Kind,
+                entity.Name());
+            return ReconciliationResult<TEntity>.Success(entity);
+        }
+
+        ReconciliationResult<TEntity> result = ReconciliationResult<TEntity>.Success(entity);
+        foreach (var controller in responsibleControllers)
+        {
+            result = await operation(controller, result.Entity, cancellationToken);
+            if (!result.IsSuccess) return result;
+        }
+
+        return result;
     }
 
     private async Task<ReconciliationResult<TEntity>> ReconcileFinalizersSequential(TEntity entity, CancellationToken cancellationToken)
